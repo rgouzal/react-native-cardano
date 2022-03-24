@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react'
-import RNModuleTemplateModule, { Counter } from 'react-native-module-template'
+import RNCardanoBlockfrostModule, { Counter } from 'react-native-cardano'
 
 const App = () => {
   useEffect(() => {
-    console.log(RNModuleTemplateModule)
+    console.log(RNCardanoBlockfrostModule)
   })
 
   return <Counter />

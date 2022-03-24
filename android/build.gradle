@@ -39,4 +39,6 @@ repositories {
 dependencies {
     //noinspection GradleDynamicVersion
     implementation 'com.facebook.react:react-native:+'
+    implementation('io.blockfrost:blockfrost-java:0.1.1')
+    implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta2'
 }
