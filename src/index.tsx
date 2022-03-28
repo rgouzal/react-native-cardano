@@ -1,26 +1,21 @@
-import * as React from 'react'
-import { Button, NativeModules, StyleSheet, Text, View } from 'react-native'
+import { func } from 'prop-types'
+import { NativeModules } from 'react-native'
 
-export const addOne = (input: number) => input + 1
+const CardanoClient = NativeModules.RNCardanoBlockfrostModule
 
-export const Counter = () => {
-  const [count, setCount] = React.useState(0)
 
-  return (
-    <View style={styles.container}>
-      <Text>You pressed {count} times</Text>
-      <Button onPress={() => setCount(addOne(count))} title='Press Me' />
-    </View>
-  )
+const Networks = {
+  TESTNET: 'testnet',
+  MAINNET: 'mainnet',
+}
+interface CardanoBlockfrost {
+  // createCalendarEvent(name: string, location: string): void;
+  initClient(mode: string, projectId: string): void
+  canConnect(): typeof Promise
+  generateMnemonic(): typeof Promise
+  createAccountByMnemonic(networkMode: string, mnemonic: string): string
+  createAccountByPrivKey(networkMode: string, passphrase: string): string
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 200,
-  },
-})
-
-export default NativeModules.RNCardanoBlockfrostModule
+export default CardanoClient as CardanoBlockfrost
+export { Networks }

@@ -1,5 +1,9 @@
 package com.rgouzal.reactnativecardano.client;
 
+import android.os.Build;
+
+import androidx.annotation.RequiresApi;
+
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.backend.api.AddressService;
@@ -28,6 +32,10 @@ import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.Keys;
 import com.bloxbean.cardano.client.crypto.SecretKey;
+import com.bloxbean.cardano.client.crypto.VerificationKey;
+import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
+import com.bloxbean.cardano.client.crypto.bip39.MnemonicException;
+import com.bloxbean.cardano.client.crypto.bip39.Words;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
@@ -49,18 +57,21 @@ import com.fasterxml.jackson.databind.deser.std.JsonNodeDeserializer;
 import com.rgouzal.reactnativecardano.models.Token;
 import com.rgouzal.reactnativecardano.models.TxResult;
 import com.rgouzal.reactnativecardano.models.WalletBalance;
+import com.rgouzal.reactnativecardano.utils.CryptoUtils;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 
 public class CardanoClient {
 
 //    private String blockfrostUrl;
 //    private String projectId;
+    Network network;
     private BackendService backendService;
     private NetworkInfoService networkInfoService;
     private BlockService blockService;
@@ -78,8 +89,9 @@ public class CardanoClient {
         initServices(blockfrostUrl, projectId);
     }
 
-    public static CardanoClient getInstance(String blockfrostUrl, String projectId) {
+    public static CardanoClient getInstance(NetworkModes networkMode, String blockfrostUrl, String projectId) {
         CardanoClient cardanoClient = new CardanoClient(blockfrostUrl, projectId);
+        cardanoClient.network = cardanoClient.toNetwork(networkMode);
         return cardanoClient;
     }
 
@@ -94,6 +106,10 @@ public class CardanoClient {
         this.assetService = this.backendService.getAssetService();
         this.addressService = this.backendService.getAddressService();
         this.feeCalculationService = this.backendService.getFeeCalculationService();
+    }
+
+    public boolean isHealthOk() throws ApiException {
+        return networkInfoService.getNetworkInfo().isSuccessful();
     }
 
     public Result<Genesis> getNetworkInformation() throws ApiException {
@@ -150,6 +166,11 @@ public class CardanoClient {
         return feeCalculationService.calculateFee(mintTx, detailsParams, metadata);
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    public String generateMnemonic() throws MnemonicException.MnemonicLengthException {
+        return MnemonicCode.INSTANCE.createMnemonic(Words.TWENTY_FOUR).stream().collect(Collectors.joining(" "));
+    }
+
     /**
      * Create account or wallet for user, returns new wallet address and its information.
      * When account is created, account returned should be stored and specially private key
@@ -160,13 +181,14 @@ public class CardanoClient {
      * @param mode
      * @return account
      */
-    public Account createAccountByMnemonic(NetworkModes mode, String mnemonic) {
-        Account account = new Account(toNetwork(mode), mnemonic);
+    public Account createAccountByMnemonic(NetworkModes mode, String mnemonic) throws Exception {
+        byte[] key = CryptoUtils.mnemonicToPrivateKey(mnemonic);
+        Account account = new Account(toNetwork(mode), key);
         return account;
     }
 
-    public Account createAccountByPrivKey(String privKey, NetworkModes mode) {
-        Account account = new Account(toNetwork(mode), privKey.getBytes(StandardCharsets.UTF_8));
+    public Account createAccountByPrivKey(NetworkModes mode, byte[] privKey) {
+        Account account = new Account(toNetwork(mode), privKey);
         return account;
     }
 
@@ -213,10 +235,10 @@ public class CardanoClient {
      * @throws ApiException
      */
     public PaymentTransaction createPaymentTx(
-            String fromStoredPrivateKey, String to,
+            byte[] fromStoredPrivateKey, String to,
             long amount, NetworkModes networkMode, String unit
     ) throws ApiException {
-        Account sender = createAccountByPrivKey(fromStoredPrivateKey, networkMode);
+        Account sender = createAccountByPrivKey(networkMode, fromStoredPrivateKey);
         PaymentTransaction tx = PaymentTransaction.builder().sender(sender).receiver(to)
                 .amount(BigInteger.valueOf(amount)).unit(CardanoConstants.LOVELACE).build();
         return tx;
@@ -300,7 +322,7 @@ public class CardanoClient {
     }
 
     public TxResult createAndSubmitToken(
-            String addressPrivKey, NetworkModes mode, String assetName, String description, List<String> tags,
+            byte[] addressPrivKey, NetworkModes mode, String assetName, String description, List<String> tags,
             String assetUrlOrIpfsUrl, String thumbnailUrlOrIpfsUrl, String type, long qty
     ) throws CborSerializationException, ApiException, AddressExcepion {
         Token token = createAssetOrNFT(
@@ -312,9 +334,9 @@ public class CardanoClient {
     }
 
     public MintTransaction mintToken(
-            String addressPrivateKey, NetworkModes mode, Token token
+            byte[] addressPrivateKey, NetworkModes mode, Token token
     ) throws ApiException {
-        Account account = createAccountByPrivKey(addressPrivateKey, mode);
+        Account account = createAccountByPrivKey(mode, addressPrivateKey);
         Policy policy = token.getPolicy();
         MintTransaction mintTx = MintTransaction.builder().sender(account)
                 .mintAssets(Arrays.asList(token.getMultiAsset())).policy(policy).build();
